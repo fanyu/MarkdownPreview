@@ -137,44 +137,67 @@ private struct TOCRow: View {
     let isCurrent: Bool
     let onTap: () -> Void
 
+    @State private var hovering = false
+
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 6) {
-                if heading.level > 1 {
-                    Rectangle()
-                        .fill(Color.secondary.opacity(0.25))
-                        .frame(width: 2)
-                        .padding(.vertical, 1)
-                }
+            HStack(spacing: 7) {
+                Capsule()
+                    .fill(isCurrent ? Color.accentColor : .clear)
+                    .frame(width: 3, height: 13)
                 Text(heading.text)
                     .font(font)
-                    .foregroundStyle(color)
+                    .foregroundStyle(textColor)
                     .lineLimit(2)
                 Spacer(minLength: 0)
             }
-            .padding(.leading, CGFloat(max(0, heading.level - 1)) * 14)
-            .padding(.vertical, heading.level == 1 ? 3 : 1)
-            .contentShape(Rectangle())
+            .padding(.leading, indent)
+            .padding(.trailing, 6)
+            .padding(.vertical, 4.5)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(rowBackground)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
-        .listRowBackground(
-            isCurrent
-                ? RoundedRectangle(cornerRadius: 5).fill(Color.accentColor.opacity(0.18))
-                : nil
-        )
+        .onHover { hovering = $0 }
+        .padding(.top, heading.level == 1 ? 10 : 0)
+        .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 0.5, leading: 6, bottom: 0.5, trailing: 6))
+    }
+
+    private var indent: CGFloat {
+        switch heading.level {
+        case 1: return 4
+        case 2: return 16
+        case 3: return 28
+        default: return 38
+        }
     }
 
     private var font: Font {
         switch heading.level {
-        case 1: return .system(size: 13, weight: .bold)
-        case 2: return .system(size: 12.5, weight: .medium)
-        default: return .system(size: 12)
+        case 1: return .system(size: 13, weight: .semibold)
+        case 2: return .system(size: 12.5)
+        default: return .system(size: 11.5)
         }
     }
 
-    private var color: Color {
+    private var textColor: Color {
         if isCurrent { return .accentColor }
-        return heading.level <= 2 ? .primary : .secondary
+        switch heading.level {
+        case 1: return .primary
+        case 2: return .primary.opacity(0.85)
+        default: return .secondary
+        }
+    }
+
+    private var rowBackground: Color {
+        if isCurrent { return Color.accentColor.opacity(0.14) }
+        if hovering { return Color.primary.opacity(0.06) }
+        return .clear
     }
 }
 
@@ -189,6 +212,8 @@ private struct SourceEditor: View {
             .lineSpacing(3)
             .autocorrectionDisabled()
             .scrollContentBackground(.hidden)
+            .padding(.leading, 20)
+            .padding(.top, 12)
             .background(Color(nsColor: .textBackgroundColor))
     }
 }
