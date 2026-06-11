@@ -207,13 +207,21 @@
   // Scroll spy: report the heading currently at the top of the viewport
   let spyTicking = false;
   let lastSpy = null;
+  let spySuppressUntil = 0;  // clicked TOC entries win over spy during the scroll animation
   function reportSpy() {
+    if (Date.now() < spySuppressUntil) return;
     let current = headingIds[0] || null;
     for (const id of headingIds) {
       const el = document.getElementById(id);
       if (!el) continue;
       if (el.getBoundingClientRect().top <= 100) current = id;
       else break;
+    }
+    // At the very bottom the last headings can never reach the top of the
+    // viewport, so highlight the final section instead.
+    if (headingIds.length &&
+        window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2) {
+      current = headingIds[headingIds.length - 1];
     }
     if (current !== lastSpy) {
       lastSpy = current;
@@ -227,7 +235,16 @@
   }, { passive: true });
 
   function scrollToHeading(id) {
-    document.getElementById(id)?.scrollIntoView();
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.scrollIntoView();
+    // Keep the clicked heading selected even when the page can't scroll it
+    // to the top (e.g. sections near the bottom of the document).
+    spySuppressUntil = Date.now() + 800;
+    if (lastSpy !== id) {
+      lastSpy = id;
+      window.webkit?.messageHandlers?.spy?.postMessage(id);
+    }
   }
 
   function resolveRelativeImages(baseDir) {

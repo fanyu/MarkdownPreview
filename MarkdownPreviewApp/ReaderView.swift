@@ -8,7 +8,10 @@ struct ReaderView: View {
 
     @AppStorage("theme") private var theme = "auto"
     @AppStorage("zoom") private var zoom = 1.0
+    @AppStorage("editorFraction") private var editorFraction = 0.42
     @State private var isEditing: Bool
+    @State private var selection: TextSelection?
+    @State private var syncedHeading: Int?
     @State private var toc: [Heading] = []
     @State private var currentHeadingID: String?
     @State private var scrollTarget: String?
@@ -45,23 +48,30 @@ struct ReaderView: View {
                 }
             }
         } detail: {
-            HSplitView {
-                if isEditing {
-                    SourceEditor(text: $document.text)
-                        .frame(minWidth: 240)
+            GeometryReader { geo in
+                HStack(spacing: 0) {
+                    if isEditing {
+                        SourceEditor(text: $document.text, selection: $selection)
+                            .frame(width: editorWidth(total: geo.size.width))
+                        SplitHandle(fraction: $editorFraction, totalWidth: geo.size.width)
+                    }
+                    MarkdownWebView(
+                        text: document.text,
+                        baseDir: fileURL.map { $0.deletingLastPathComponent().path },
+                        theme: theme,
+                        zoom: zoom,
+                        toc: $toc,
+                        currentHeadingID: $currentHeadingID,
+                        scrollTarget: $scrollTarget
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                MarkdownWebView(
-                    text: document.text,
-                    baseDir: fileURL.map { $0.deletingLastPathComponent().path },
-                    theme: theme,
-                    zoom: zoom,
-                    toc: $toc,
-                    currentHeadingID: $currentHeadingID,
-                    scrollTarget: $scrollTarget
-                )
-                .frame(minWidth: 280, maxWidth: .infinity, maxHeight: .infinity)
             }
             .ignoresSafeArea(edges: .bottom)
+        }
+        .frame(minWidth: 960, minHeight: 600)
+        .onChange(of: selection) { sel in
+            syncPreviewToCursor(sel)
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -82,19 +92,43 @@ struct ReaderView: View {
             }
         }
     }
-}
 
-/// Plain-text markdown source editor.
-private struct SourceEditor: View {
-    @Binding var text: String
+    private func editorWidth(total: CGFloat) -> CGFloat {
+        min(max(240, total * editorFraction), total * 0.6)
+    }
 
-    var body: some View {
-        TextEditor(text: $text)
-            .font(.system(size: 13, design: .monospaced))
-            .lineSpacing(3)
-            .autocorrectionDisabled()
-            .scrollContentBackground(.hidden)
-            .background(Color(nsColor: .textBackgroundColor))
+    /// While editing, keep the preview scrolled to the section under the cursor.
+    private func syncPreviewToCursor(_ sel: TextSelection?) {
+        guard isEditing, let sel, case .selection(let range) = sel.indices else { return }
+        guard let index = headingIndex(before: range.lowerBound),
+              index != syncedHeading else { return }
+        syncedHeading = index
+        scrollTarget = "heading-\(index)"
+    }
+
+    /// Index (in TOC order) of the last h1–h4 heading at or above the cursor,
+    /// matching the `heading-N` ids assigned in preview.html. Skips fenced
+    /// code blocks so `#` comments inside them don't shift the count.
+    private func headingIndex(before cursor: String.Index) -> Int? {
+        let text = document.text
+        var count = 0
+        var inFence = false
+        var lineStart = text.startIndex
+        while lineStart < text.endIndex {
+            let lineEnd = text[lineStart...].firstIndex(of: "\n") ?? text.endIndex
+            let line = text[lineStart..<lineEnd]
+            if line.hasPrefix("```") || line.hasPrefix("~~~") {
+                inFence.toggle()
+            } else if !inFence {
+                let hashes = line.prefix(while: { $0 == "#" }).count
+                if (1...4).contains(hashes), line.dropFirst(hashes).first == " " {
+                    count += 1
+                }
+            }
+            if cursor <= lineEnd { break }
+            lineStart = text.index(after: lineEnd)
+        }
+        return count > 0 ? count - 1 : nil
     }
 }
 
@@ -142,4 +176,52 @@ private struct TOCRow: View {
         if isCurrent { return .accentColor }
         return heading.level <= 2 ? .primary : .secondary
     }
+}
+
+/// Plain-text markdown source editor.
+private struct SourceEditor: View {
+    @Binding var text: String
+    @Binding var selection: TextSelection?
+
+    var body: some View {
+        TextEditor(text: $text, selection: $selection)
+            .font(.system(size: 13, design: .monospaced))
+            .lineSpacing(3)
+            .autocorrectionDisabled()
+            .scrollContentBackground(.hidden)
+            .background(Color(nsColor: .textBackgroundColor))
+    }
+}
+
+/// Draggable divider between the editor and the preview.
+private struct SplitHandle: View {
+    @Binding var fraction: Double
+    let totalWidth: CGFloat
+
+    var body: some View {
+        Rectangle()
+            .fill(.clear)
+            .frame(width: 9)
+            .overlay(
+                Rectangle()
+                    .fill(Color(nsColor: .separatorColor))
+                    .frame(width: 1)
+            )
+            .contentShape(Rectangle())
+            .onHover { inside in
+                if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
+            }
+            .gesture(
+                DragGesture(coordinateSpace: .global)
+                    .onChanged { value in
+                        guard totalWidth > 0 else { return }
+                        let delta = value.translation.width / totalWidth
+                        fraction = min(0.6, max(0.25, dragStart + delta))
+                    }
+                    .onEnded { _ in dragStart = fraction }
+            )
+            .onAppear { dragStart = fraction }
+    }
+
+    @State private var dragStart = 0.42
 }

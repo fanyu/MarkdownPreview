@@ -43,10 +43,17 @@ Or open `MarkdownPreview.xcodeproj` and run the `MarkdownPreviewApp` scheme.
 
 ## Enable the Xcode extension
 
-1. Run MarkdownPreviewApp once
-2. System Settings → Privacy & Security → Extensions → Xcode Source Editor →
+1. Run MarkdownPreviewApp once (so macOS registers the extension)
+2. **System Settings → General → Login Items & Extensions**, scroll down to
+   the **Extensions** section, click ⓘ next to **Xcode Source Editor**, and
    enable **MarkdownPreview**
-3. Restart Xcode; the command appears under **Editor → MarkdownPreviewExtension**
+   (on macOS 13/14 this was under Privacy & Security → Extensions)
+3. Restart Xcode; the command appears under **Editor → MarkdownPreviewExtension
+   → Toggle Markdown Preview**
+
+If the extension doesn't show up, check it is registered with
+`pluginkit -m | grep -i markdown` — it should list
+`com.fanyu.MarkdownPreviewApp.MarkdownPreviewExtension`.
 
 The first time follow mode activates, macOS asks for permission to automate
 Xcode (Apple Events) — required to detect which file is open.

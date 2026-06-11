@@ -18,6 +18,7 @@ struct MarkdownPreviewApp: App {
         // instead of scene restoration so launch is deterministic.
         .defaultLaunchBehavior(.suppressed)
         .restorationBehavior(.disabled)
+        .defaultSize(width: 1280, height: 860)
         .commands {
             CommandGroup(after: .appInfo) {
                 Button("欢迎使用 MarkdownPreview") {

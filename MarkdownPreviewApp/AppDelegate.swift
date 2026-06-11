@@ -18,8 +18,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         super.init()
         Self.shared = self
         // No window resume: launch always lands on the welcome window and
-        // documents reopen via its recents list.
-        UserDefaults.standard.register(defaults: ["NSQuitAlwaysKeepsWindows": false])
+        // documents reopen via its recents list. Persisted (not registered)
+        // because the restoration machinery reads it outside this process.
+        if UserDefaults.standard.object(forKey: "NSQuitAlwaysKeepsWindows") == nil {
+            UserDefaults.standard.set(false, forKey: "NSQuitAlwaysKeepsWindows")
+        }
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
